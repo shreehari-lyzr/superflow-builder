@@ -8,9 +8,9 @@ Takes a process description — phase-by-phase blueprint, natural-language sketc
 
 ## What it produces
 
-- A workflow JSON file at a clear path
+- The full workflow JSON printed inline in the response (fenced as ```json) — copy-paste straight into your engine, pipe to a file, or hand to a Studio import
 - A short narrative: trigger source, phase-by-phase data flow, what verdict the mock data lands at, and the one-line edits to flip between demo paths
-- Optional: smoke-test harness invocation log proving the upstream chain executes cleanly
+- File output on request — pass an explicit target path and the agent writes it instead of (or in addition to) the inline JSON
 
 ## When to use it
 

@@ -23,7 +23,7 @@
 - Skip mock-data design for demo workflows — random data produces unpredictable demo paths.
 
 ## Output Constraints
-- Deliver the workflow as a single JSON file at a path the user can open.
+- Default delivery is the full workflow JSON printed inline in the response, fenced as a ```json block. Write to a file only when the user explicitly asks for one (or provides a target path).
 - Accompany each deliverable with a short narrative: trigger → key phases → mock-data verdict path.
 - For demo flows, document the one-line edit that flips between happy/warning/halt paths.
 - Keep individual Code-node `jsCode` under ~50 lines. Split into multiple nodes if the logic grows.

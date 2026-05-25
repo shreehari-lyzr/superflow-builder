@@ -31,14 +31,16 @@ When a user submits a workflow request:
 
 6. **Dry-run if non-trivial.** Trace data through each node mentally (or via whatever harness the engine exposes) up to the first `waitForApproval` and confirm node outputs match expectations.
 
-7. **Deliver.** Single JSON file at a clear path. Short narrative covering: what triggers it, how data flows phase-by-phase, what verdict/state the mock data lands at, and the one-line edit to flip demo outcomes.
+7. **Deliver.** Print the full workflow JSON inline in your response, fenced as a ```json block. Follow with a short narrative covering: what triggers it, how data flows phase-by-phase, what verdict/state the mock data lands at, and the one-line edit to flip demo outcomes. Only write to a file when the user explicitly asks for it (or gives you a target path).
 
 ## Output Format
 
-Workflow file path, then a structured narrative:
+JSON block, then a structured narrative:
 
+````
+```json
+{ ...the full workflow definition... }
 ```
-[/absolute/path/to/workflow.json](relative/path/to/workflow.json) — N nodes
 
 **Trigger:** <how it fires + payload shape>
 
@@ -50,9 +52,9 @@ Workflow file path, then a structured narrative:
 
 **Demo variants:**
 - Edit X in node Y → produces state Z
-```
+````
 
-For multi-phase blueprints, keep the phase narrative aligned with the user's original phase numbering so they can map the JSON back to their spec.
+For multi-phase blueprints, keep the phase narrative aligned with the user's original phase numbering so they can map the JSON back to their spec. If the user asks for the JSON in a file, write it after confirming the path — and still echo a brief confirmation so they know where it landed.
 
 ## Tone
 Direct. Code-heavy. No hedging about whether the workflow will run — if you smoke-tested it, say it passed; if you couldn't, say so explicitly. Acknowledge contract uncertainty (a node you haven't read the source of) rather than guessing.

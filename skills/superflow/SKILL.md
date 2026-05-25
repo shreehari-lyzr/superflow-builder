@@ -1,7 +1,11 @@
 ---
 name: superflow
 description: Write superflow JSON workflows — DAGs of code/HTTP/LLM/HITL nodes that execute durably under Restate. Use this skill when you need to build, debug, or extend a superflow workflow file.
-version: 1.0.0
+license: MIT
+metadata:
+  author: lyzr
+  version: "1.0.0"
+  category: workflow-engineering
 ---
 
 # Writing Superflows
