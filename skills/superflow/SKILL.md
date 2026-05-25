@@ -1,12 +1,12 @@
 ---
 name: superflow
-description: Write superflow JSON workflows for inference-svc — DAGs of code/HTTP/LLM/HITL nodes that execute durably under Restate. Use this skill when you need to build, debug, or extend a workflow `.json` file consumed by the engine in `internal/executors/` and `internal/engine/`.
+description: Write superflow JSON workflows — DAGs of code/HTTP/LLM/HITL nodes that execute durably under Restate. Use this skill when you need to build, debug, or extend a superflow workflow file.
 version: 1.0.0
 ---
 
 # Writing Superflows
 
-Superflows are workflow JSON files executed by `inference-svc`. **Every workflow triggered from the frontend runs durably through Restate** — design accordingly.
+Superflows are workflow JSON files executed by a DAG engine with Restate-backed durability. **Every workflow triggered from the frontend runs durably through Restate** — design accordingly.
 
 ## When to use this skill
 
@@ -59,7 +59,7 @@ For template strings in non-Code parameters (LLM `prompt`, HTTP `jsonBody`, appr
 
 ## Node-type registry
 
-All registered types live in [internal/executors/registry.go](../../../../internal/executors/registry.go) `RegisterAll()`. The parameter contract listed below is what the executor actually reads — anything else in `parameters` is ignored.
+All registered node types are listed below. The parameter contract for each is what its executor actually reads — anything else in `parameters` is ignored.
 
 ### `lyzr-nodes-base.trigger`
 No params used. Passes input items through or emits one empty `{}` if none.
@@ -127,7 +127,7 @@ const result = cond
 - `sendBody` defaults to true for POST/PUT/PATCH.
 - Output item: `{statusCode, headers, body}`. `body` is JSON-decoded unless `responseFormat` is `text` or `blob`.
 - The upstream input item is **not** included in the output — only the response shape. To preserve data across an HTTP call, see the HTTP body preservation section below.
-- Auth via `parameters.auth` — see [internal/auth/auth.go](../../../../internal/auth/auth.go) for supported shapes (Bearer, Basic, API Key, OAuth2 client_credentials, AWS SigV4, JWT bearer, mTLS).
+- Auth via `parameters.auth` — supported shapes: Bearer, Basic, API Key, OAuth2 client_credentials, AWS SigV4, JWT bearer, mTLS.
 
 ### `lyzr-nodes-base.if` (v2)
 ```json
@@ -303,7 +303,7 @@ Calls RAG at `RAG_API_URL`. Output: `{status, tier, file_url, file_type, chunks[
 ```
 
 ### `lyzr-nodes-base.lyzr.tool`
-Direct platform tool invocation (no LLM). See [internal/executors/tool_node.go](../../../../internal/executors/tool_node.go).
+Direct platform tool invocation (no LLM).
 
 ## Connections
 
@@ -335,7 +335,7 @@ Mental model:
 
 ## Expression engine
 
-Inside any string parameter value, `{{ ... }}` is evaluated. Source: [internal/engine/expressions.go](../../../../internal/engine/expressions.go).
+Inside any string parameter value, `{{ ... }}` is evaluated.
 
 ```
 {{ $json.field }}                       — current node's first input item, field path
@@ -470,46 +470,8 @@ Before considering a workflow file done:
 - [ ] `taskDecomposition` only used when LLM-driven subtask spawning is actually wanted. For deterministic parallel work, fan out the DAG.
 - [ ] File passes `python3 -c "import json; json.load(open('file.json'))"`.
 
-## Quick smoke-test harness
+## Dry-run before delivery
 
-Drop this in `cmd/wftest/main.go` (gitignored) and run `go run ./cmd/wftest/ path/to/workflow.json`:
+Whatever harness the engine exposes for offline execution, use it to walk the workflow up to the first `waitForApproval` and confirm each node's output matches expectations. This catches JS errors, missing fields, and routing mistakes before deployment.
 
-```go
-package main
-
-import (
-  "context"; "encoding/json"; "fmt"; "os"
-  "inference-svc/internal/engine"
-  "inference-svc/internal/executors"
-  "inference-svc/internal/models"
-)
-
-func main() {
-  data, _ := os.ReadFile(os.Args[1])
-  wf, err := engine.ParseWorkflow(data)
-  if err != nil { fmt.Println("parse:", err); return }
-  executors.RegisterAll()
-  result, err := engine.RunWorkflow(context.Background(), wf, []models.Item{{}}, executors.BuildLookup())
-  if err != nil { fmt.Println("RUN ERROR:", err) }
-  if result == nil { return }
-  for name, out := range result.NodeOutputs {
-    for idx, items := range out {
-      if len(items) == 0 { continue }
-      b, _ := json.MarshalIndent(items[0], "", "  ")
-      fmt.Printf("\n=== %s [out %d] ===\n%s\n", name, idx, string(b))
-    }
-  }
-}
-```
-
-Useful for catching JS errors, missing fields, and routing mistakes before deployment. Truncate the workflow at `waitForApproval` to test the upstream chain; substitute Code nodes that emit mock outputs (`{output: {…}, status: 'completed', input_tokens: 0, output_tokens: 0}`) where you'd otherwise hit an LLM that needs credentials.
-
-## Reference: source files
-
-- Registry: [internal/executors/registry.go](../../../../internal/executors/registry.go)
-- Expressions: [internal/engine/expressions.go](../../../../internal/engine/expressions.go)
-- DAG building: [internal/engine/dag.go](../../../../internal/engine/dag.go)
-- Connection parsing: [internal/engine/parser.go](../../../../internal/engine/parser.go)
-- Approval node: [internal/executors/approval.go](../../../../internal/executors/approval.go)
-- Code node sandbox: [internal/executors/code.go](../../../../internal/executors/code.go)
-- HTTP node: [internal/executors/http_request.go](../../../../internal/executors/http_request.go)
+When dry-running, truncate the workflow at `waitForApproval` to test the upstream chain. Substitute Code nodes that emit mock LLM outputs (`{output: {…}, status: 'completed', input_tokens: 0, output_tokens: 0}`) where you'd otherwise hit a model that needs credentials.

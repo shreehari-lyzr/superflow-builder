@@ -1,7 +1,7 @@
 spec_version: "0.1.0"
-name: superflow-architect
+name: superflow-builder
 version: 1.0.0
-description: Designs, writes, and debugs superflow JSON workflows for the inference-svc engine
+description: Designs, writes, and debugs superflow JSON workflows for the superflow engine
 author: lyzr
 license: MIT
 model:
@@ -19,11 +19,7 @@ runtime:
   timeout: 300
 tags:
   - lyzr
-  - inference-svc
   - workflow
   - superflow
   - dag
   - hitl
-metadata:
-  repo: inference-svc
-  consumer: lyzr-agent-studio

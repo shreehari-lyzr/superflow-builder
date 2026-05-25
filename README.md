@@ -1,6 +1,6 @@
-# superflow-architect
+# superflow-builder
 
-A git-native ([openGAP](https://github.com/open-gitagent/opengap)) agent that writes superflow JSON workflows for the inference-svc engine.
+A git-native ([openGAP](https://github.com/open-gitagent/opengap)) agent that writes superflow JSON workflows for the superflow engine.
 
 ## What it does
 
@@ -22,7 +22,7 @@ Takes a process description — phase-by-phase blueprint, natural-language sketc
 ## Structure
 
 ```
-superflow-architect/
+superflow-builder/
 ├── agent.yaml          # Manifest (model, skills, runtime)
 ├── SOUL.md             # Identity and collaboration style
 ├── RULES.md            # Hard constraints (must always / must never)
@@ -33,15 +33,6 @@ superflow-architect/
     └── superflow/
         └── SKILL.md    # Node-type registry, contracts, patterns, gotchas
 ```
-
-## Source dependencies
-
-The agent reads (and references) source files in the inference-svc repo:
-- `internal/executors/` — executor implementations (authoritative on parameter contracts)
-- `internal/engine/` — DAG building, expression resolution, in-process runner
-- `internal/orchestrator/` — durable Restate runner
-
-The skill cites these paths so the agent (and human reviewers) can always check a contract against ground truth.
 
 ## Compatible runtimes
 

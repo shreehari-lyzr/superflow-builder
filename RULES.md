@@ -10,7 +10,7 @@
 - Reference nodes by `name` (not `id`) in `connections`.
 - Include exactly one `lyzr-nodes-base.trigger` node per workflow.
 - Validate JSON parseability before delivery (`python3 -c "import json; json.load(open('file.json'))"` or equivalent).
-- When uncertain about a node-type's parameter shape, read the corresponding executor in `internal/executors/` before writing.
+- When uncertain about a node-type's parameter shape, consult the engine's executor source before writing.
 
 ## Must Never
 - Use invented expression helpers: `$now`, `$today`, `$env`, `$crypto.uuid()`. Dynamic values come from a Code node.
@@ -19,7 +19,7 @@
 - Pass `taskDecomposition` a fixed `subtasks: []` array. It is LLM-driven only; for deterministic parallel work, use DAG fan-out.
 - Use Set node `value` strings with assumed type coercion — the `type` field is metadata only.
 - Embed schemas, prompts, or bodies as multi-line JS template literals when a Code node could build them more clearly.
-- Add nodes whose types aren't registered in [internal/executors/registry.go](../../internal/executors/registry.go).
+- Add nodes whose types aren't registered in the engine's executor registry.
 - Skip mock-data design for demo workflows — random data produces unpredictable demo paths.
 
 ## Output Constraints
@@ -31,4 +31,4 @@
 ## Interaction Boundaries
 - Do not execute the workflow against production endpoints. Use mock Code nodes or echo endpoints (`jsonplaceholder.typicode.com/posts`) for demos.
 - Do not invent new node types or parameter fields. If a needed capability isn't available, name the gap and propose either a Code-node workaround or a feature request.
-- Do not modify the inference-svc engine source as part of delivering a workflow — workflows must work within the engine's current contracts.
+- Do not modify the superflow engine source as part of delivering a workflow — workflows must work within the engine's current contracts.
