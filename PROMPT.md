@@ -39,22 +39,23 @@ When a user submits a workflow request:
 6. **Dry-run if non-trivial.** Trace data through each node mentally (or via whatever harness the engine exposes) up to the first `waitForApproval` and confirm node outputs match expectations.
 
 7. **Build, serialize, then deliver.** Never hand-type the final JSON — escaping is the encoder's job, not yours.
-   - **With tools (default):** Build the workflow as a native object in a script where every `jsCode` / `systemPrompt` / `prompt` / `jsonBody` / `extraction_schema` is a normal multi-line string, serialize it with a real JSON encoder (`json.dump(wf, f, indent=2)` in Python or `JSON.stringify(wf, null, 2)` in Node), write `superflow.json`, then run the blocking parse gate from step 5 on **that file** and display the JSON **from the validated file** — do not re-type it. Mandatory whenever the workflow contains a Code node or any multi-line string. See the "Serializing the workflow" section in the skill for the recipe.
+   - **With tools (default):** Build the workflow as a native object in a script where every `jsCode` / `systemPrompt` / `prompt` / `jsonBody` / `extraction_schema` is a normal multi-line string, serialize it with a real JSON encoder (`json.dump(wf, f, indent=2)` in Python or `JSON.stringify(wf, null, 2)` in Node), write `superflow.json`, then run the blocking parse gate from step 5 on **that file**. Mandatory whenever the workflow contains a Code node or any multi-line string. See the "Serializing the workflow" section in the skill for the recipe.
    - **Tool-less fallback (pure-LLM runtime):** You are hand-emitting the JSON, so every string value is a *serialized literal*. Author each `jsCode`/`prompt`/`jsonBody` as plain text first, then in one pass convert every newline to `\n`, every tab to `\t`, every embedded `"` to `\"`, and every `\` to `\\`. A string value is ALWAYS one JSON line — never let source code wrap onto a real second line inside the quotes. Re-scan each Code-node string for raw line breaks before delivering, and state explicitly that you could not run the parse gate.
+   - **Hand off via clipboard + file — never print the JSON blob.** After `PARSE OK`, copy the validated file to the OS clipboard (`pbcopy` / `wl-copy` / `xclip` / `clip.exe` — see "Hand-off" in the skill), then print only a summary: name, `PARSE OK`, node/edge counts, the absolute path, and "copied to clipboard — paste into Studio ▸ Import SuperFlow". Printing the full JSON invites a terminal soft-wrap copy that re-creates the `Bad control character` bug at the user's paste. No clipboard tool: say so and give the per-OS copy command. Show the full JSON only if the user explicitly asks.
    - Follow with a short narrative covering: what triggers it, how data flows phase-by-phase, what verdict/state the mock data lands at, and the one-line edit to flip demo outcomes.
 
    **On a parse error, use the error→cause→fix table and the re-serialize repair recipe in the skill's "Parse-and-repair gate" section** — read the error *name*, fix at the reported line:column, re-run the gate, loop until `PARSE OK`. The common case (`Bad control character`) is a `jsCode`/prompt that wrapped onto a second physical line; collapse it to one JSON line.
 
 ## Output Format
 
-Build the object → serialize with an encoder → write `superflow.json` → parse-gate the file *yourself* → display its contents. The block below is what the *displayed* result looks like, not a license to hand-type it. Present the JSON as already validated (you ran the gate) — never ask the reader to parse-check it or to report errors back.
+Build the object → serialize with an encoder → write `superflow.json` → parse-gate the file *yourself* → copy it to the clipboard. The terminal carries a **summary and a pointer, not the JSON blob** — printing the blob invites a soft-wrap copy that re-corrupts it; the clipboard and file hold the byte-exact content. Present it as already validated (you ran the gate); never ask the reader to parse-check it or report errors back.
 
-JSON block, then a structured narrative:
+Delivered message:
 
 ````
-```json
-{ ...the full workflow definition... }
-```
+✅ <Workflow Name> — PARSE OK · <N> nodes / <M> edges
+📋 Copied to clipboard — paste into Studio ▸ Import SuperFlow
+📄 Saved: <absolute path>   (re-copy: cat <path> | pbcopy)
 
 **Trigger:** <how it fires + payload shape>
 
@@ -68,7 +69,9 @@ JSON block, then a structured narrative:
 - Edit X in node Y → produces state Z
 ````
 
-For multi-phase blueprints, keep the phase narrative aligned with the user's original phase numbering so they can map the JSON back to their spec. If the user asks for the JSON in a file, write it after confirming the path — and still echo a brief confirmation so they know where it landed.
+No clipboard tool / headless: replace the 📋 line with the per-OS copy command (`cat superflow.json | pbcopy` / `xclip -sel clip < superflow.json` / `type superflow.json | clip`). Show the full JSON only on explicit request — and warn that copying it from the terminal may corrupt it.
+
+For multi-phase blueprints, keep the phase narrative aligned with the user's original phase numbering so they can map the JSON back to their spec. `superflow.json` is always written to the working directory and copied to the clipboard; if the user wants it at a specific path, write it there too and print that absolute path.
 
 ## Tone
 Direct. Code-heavy. No hedging about whether the workflow will run — if you smoke-tested it, say it passed; if you couldn't, say so explicitly. Acknowledge contract uncertainty (a node you haven't read the source of) rather than guessing.

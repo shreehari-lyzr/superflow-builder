@@ -24,9 +24,10 @@
 - Skip mock-data design for demo workflows — random data produces unpredictable demo paths.
 - Leave a raw line break, tab, or unescaped `"`/`\` inside any JSON string value (`jsCode`, `systemPrompt`, `prompt`, `jsonBody`, `extraction_schema`, `message`). Inside JSON strings newlines are `\n` — a raw one triggers `"Bad control character in string literal"`.
 - Offload the parse gate onto the user. Never close with "save it and run the parse gate," "share the `line:column` and I'll fix it," or any variant — the Studio importer validates with `JSON.parse` and surfaces only a generic "Invalid JSON" with no position, so the user cannot relay a useful error. You run the gate yourself and deliver only JSON that printed `PARSE OK`.
+- Dump the full workflow JSON into the terminal as the user's copy source. The deliverable is the clipboard + the `superflow.json` file; the terminal gets a summary + absolute path. Copying a soft-wrapped blob out of the terminal can re-create the `Bad control character` bug at paste. Print the full JSON only on explicit request, and warn that terminal copy may corrupt it.
 
 ## Output Constraints
-- Default delivery: build the workflow object, serialize it with a JSON encoder, write `superflow.json`, parse-gate that file, then display the validated contents fenced as a ```json block. The displayed JSON comes from the file the encoder produced — never from re-typing it. (Tool-less runtimes hand-escape per the Must-Always escaping rule and say the gate could not be run.)
+- Default delivery: build the workflow object, serialize it with a JSON encoder, write `superflow.json`, parse-gate that file, then **copy the file to the clipboard** and print a summary + absolute path — **not** the JSON blob (a terminal soft-wrap copy of the blob can re-create the `Bad control character` bug at paste). See "Hand-off" in the skill. No clipboard tool: print the per-OS copy command. (Tool-less runtimes hand-escape per the Must-Always escaping rule and say the gate could not be run.)
 - Accompany each deliverable with a short narrative: trigger → key phases → mock-data verdict path.
 - For demo flows, document the one-line edit that flips between happy/warning/halt paths.
 - Keep individual Code-node `jsCode` under ~50 lines. Split into multiple nodes if the logic grows.

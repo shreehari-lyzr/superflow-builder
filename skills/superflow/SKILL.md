@@ -108,6 +108,27 @@ python3 -c "import json,sys; print(json.dumps(open(sys.argv[1]).read()))" scratc
 
 After fixing the reported field, **re-scan every other `jsCode` and embedded-JSON string** — one wrapped field usually means others wrapped the same way. Re-run the gate one final time before delivering.
 
+## Hand-off: copy to clipboard, don't print the blob
+
+Once the file passes the gate, the deliverable **is the file**, not a fenced block in the terminal. Printing the full JSON is actively harmful: terminals soft-wrap long `jsCode` lines, and copying that wrapped text turns the soft-wrap into a **real newline** — re-creating the `Bad control character` bug at the user's paste. Studio ▸ Import SuperFlow needs byte-exact JSON, so put the bytes on the clipboard and leave the terminal for a summary.
+
+After `PARSE OK`, copy the validated file to the clipboard (OS-detected, first match wins):
+
+```
+f=superflow.json
+if   command -v pbcopy   >/dev/null 2>&1; then pbcopy < "$f"                     # macOS
+elif command -v wl-copy  >/dev/null 2>&1; then wl-copy < "$f"                    # Linux/Wayland
+elif command -v xclip    >/dev/null 2>&1; then xclip -selection clipboard < "$f" # Linux/X11
+elif command -v xsel     >/dev/null 2>&1; then xsel --clipboard --input < "$f"
+elif command -v clip.exe >/dev/null 2>&1; then clip.exe < "$f"                   # WSL/Windows
+else echo "NO_CLIPBOARD"; fi
+```
+
+Then **print a summary, not the JSON**: name, `PARSE OK`, node/edge counts, the absolute file path, and "copied to clipboard — paste into Studio ▸ Import SuperFlow". Follow with the phase narrative.
+
+- **No clipboard tool** (snippet printed `NO_CLIPBOARD`, or you're headless): say so, print the path, and give the copy command for the user's OS — `cat superflow.json | pbcopy` (macOS), `xclip -sel clip < superflow.json` (Linux/X11), `type superflow.json | clip` (Windows). Never dump the blob as the copy source.
+- **Show the full JSON only on explicit request** — and note that copying it from the terminal can corrupt it; point at the clipboard/file instead.
+
 ## The core rule for data flow
 
 A Code node sees only what is delivered to it through its **input edges**. Always read inputs via:
