@@ -36,6 +36,74 @@ Hard rules:
 - **`position` is `[x, y]`** — required for UI layout. Pick non-overlapping coordinates.
 - **Settings can be `{}`.**
 
+## Serializing the workflow (do this — don't hand-type JSON)
+
+The #1 way a superflow fails to parse is a raw newline or unescaped quote inside a string value (`jsCode`, `systemPrompt`, `prompt`, `jsonBody`, `extraction_schema`). JSON string literals (RFC 8259) forbid raw control chars `U+0000–U+001F`: every newline must be `\n`, every tab `\t`, every embedded `"` must be `\"`, every backslash `\\`. You cannot reliably hand-escape a long multi-line program across hundreds of tokens — so **don't**. Build the workflow as a native object and let a real encoder do the escaping.
+
+**Python:**
+```python
+import json
+jsCode = """const input = $input.first() || {};
+const topic = input.topic || 'The Future of AI';
+const run_id = `essay-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+[{ run_id, topic, started_at: new Date().toISOString() }]"""
+
+wf = {
+  "name": "Essay Generator and Emailer",
+  "nodes": [
+    {"id": "init", "name": "Init", "type": "lyzr-nodes-base.code", "typeVersion": 2,
+     "parameters": {"jsCode": jsCode}, "position": [340, 300]},
+    # ...
+  ],
+  "connections": { ... },
+  "settings": {},
+}
+json.dump(wf, open("superflow.json", "w"), indent=2)
+json.load(open("superflow.json"))  # parse gate — raises if anything is malformed
+```
+
+**Node:**
+```js
+const fs = require('fs');
+const jsCode = `const input = $input.first() || {};
+const topic = input.topic || 'The Future of AI';
+[{ topic }]`;
+const wf = { name: "...", nodes: [ { /* ... */ parameters: { jsCode } } ], connections: {}, settings: {} };
+fs.writeFileSync('superflow.json', JSON.stringify(wf, null, 2));
+JSON.parse(fs.readFileSync('superflow.json', 'utf8'));  // parse gate
+```
+
+The multi-line `jsCode`/prompt examples shown elsewhere in this skill are **source form** — author them as normal multi-line strings and let `json.dump`/`JSON.stringify` serialize them. Never paste source form verbatim between JSON quotes.
+
+**Tool-less fallback (pure-LLM, no encoder).** You are now the encoder. Author each string as plain text in scratch, then in one pass: every newline → `\n`, every tab → `\t`, every `"` → `\"`, every `\` → `\\`. A string value is ALWAYS one JSON line — never let source wrap onto a real second physical line inside the quotes (the exact bug in the essay incident: `...'reader@example.com';\nconst` then a REAL line break before `recipient_name`). Re-scan every Code-node string for raw line breaks before delivering, and state that you could not run the parse gate.
+
+**Doubly-escaped fields.** `extraction_schema` and `jsonBody` built inline are JSON-*stringified-as-a-string* — their inner `"` become `\"`. Prefer building these in an upstream Code node (`JSON.stringify(obj)`) and referencing the result via `{{ }}`, rather than escaping by hand.
+
+## Parse-and-repair gate (run before every delivery)
+
+Serializing prevents most escaping bugs; the gate *proves* the file is clean and tells you exactly where it isn't. This is blocking — you may not deliver until it prints `PARSE OK`.
+
+```
+python3 -c "import json,sys; json.load(open(sys.argv[1])); print('PARSE OK')" superflow.json
+```
+
+On failure the parser names the fault and the byte: `... at position P (line L column C)`. Read the error *name*, jump to line L, fix, **re-run the gate** — loop until `PARSE OK`. Never ship a file that hasn't printed `PARSE OK` (and if you cannot run the gate at all, say so explicitly — do not assert it parses).
+
+| Parser error | Cause | Fix |
+|---|---|---|
+| `Bad control character in string literal` | A **raw newline/tab** inside an open string — a `jsCode`/prompt that wrapped onto a real second physical line (the essay incident: a raw `0x0A` after `const`). | Collapse that string field to **one JSON line**; every break `\n`, every tab `\t`. |
+| `Invalid \escape` | A **lone backslash** — a regex `/\d+/`, a literal `\n` meant for output text. | Double it: `\\d+`, `\\n`. |
+| `Expecting ',' delimiter` / `Unterminated string` | An **unescaped `"`** inside a string value. | Escape it: `\"`. |
+| `Expecting value` / `Extra data` | Trailing comma, missing brace, or text outside the top-level object. | Fix the structural token at line L:C. |
+
+**Repair a long Code-node string by re-serialization, not by hand-patching the blob.** Drop the broken JS into a scratch file as normal multi-line source and let the encoder emit the exact quoted literal to paste back in:
+
+```
+python3 -c "import json,sys; print(json.dumps(open(sys.argv[1]).read()))" scratch.js
+```
+
+After fixing the reported field, **re-scan every other `jsCode` and embedded-JSON string** — one wrapped field usually means others wrapped the same way. Re-run the gate one final time before delivering.
+
 ## The core rule for data flow
 
 A Code node sees only what is delivered to it through its **input edges**. Always read inputs via:
@@ -78,7 +146,7 @@ No params used. Passes input items through or emits one empty `{}` if none.
 ```
 
 **Key contract:**
-- Param name is **`jsCode`**.
+- Param name is **`jsCode`**. Its value is JS *source carried as a JSON string* — author it as a normal multi-line string and serialize via an encoder (see "Serializing the workflow"); never paste multi-line source between JSON quotes by hand. A bare backtick template (e.g. `` `essay-${Date.now()}` ``) is fine — the encoder escapes it — but do not let a template literal span multiple physical lines in source; keep multi-line output text built by concatenation or from an upstream value. Keep `jsCode` short (~50 lines; RULES.md) so even a tool-less hand-escape stays reliable.
 - **No top-level `return`.** The script's last expression is the completion value. `return` inside callbacks (`.map(p => p+1)`, `function(x) { return ... }`) is fine.
 - Must return an **array of plain objects**: `[{key: val}, ...]`. Returning an array of primitives errors with `"code node must return an array of objects"`.
 - 10-second execution timeout.
@@ -459,6 +527,9 @@ Recipes:
 
 Before considering a workflow file done:
 
+- [ ] **Workflow was serialized by a JSON encoder (`json.dump` / `JSON.stringify`), not hand-typed** — when a tool is available.
+- [ ] **Every multi-line string field (`jsCode`, `systemPrompt`, `prompt`, `jsonBody`, `extraction_schema`) is one JSON line using `\n`/`\t`, with embedded `"` as `\"` and `\` as `\\`** — no raw line break inside an open quote. (Encoder output guarantees this; tool-less, char-scan each string.)
+- [ ] **Parse gate prints `PARSE OK` (blocking):** `python3 -c "import json,sys; json.load(open(sys.argv[1])); print('PARSE OK')" superflow.json`. On any error, apply the repair table in "Parse-and-repair gate" at the reported line:column and re-run until `PARSE OK`. If no tool to run it, say so; do not assert it parses.
 - [ ] Exactly one `lyzr-nodes-base.trigger` node.
 - [ ] Every node has a unique `name`. Connections reference names, not `id`.
 - [ ] Every Code node's `jsCode` ends with a bare expression — no top-level `return`.
@@ -472,7 +543,6 @@ Before considering a workflow file done:
 - [ ] Approval `formSchema` uses `requiredOn`, not bare `required`.
 - [ ] Dynamic values (timestamps, UUIDs, env-driven values) come from a Code node, not invented expression helpers.
 - [ ] `taskDecomposition` only used when LLM-driven subtask spawning is actually wanted. For deterministic parallel work, fan out the DAG.
-- [ ] File passes `python3 -c "import json; json.load(open('file.json'))"`.
 
 ## Dry-run before delivery
 
