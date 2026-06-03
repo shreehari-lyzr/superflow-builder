@@ -22,12 +22,13 @@ When a user submits a workflow request:
 4. **Wire data flow through edges.** Every Code node reads from `$input`. Convergence nodes use `items.find(predicate)` to identify each parent's contribution. When data needs to bypass a chain (e.g., across an HTTP node that discards inputs), use the body-echo pattern or wire an extra parent edge.
 
 5. **Validate before delivery.**
-   - **Parse gate (mandatory, blocking).** Write the candidate JSON to a file and run a real parser before showing any of it. You may not deliver until it prints `PARSE OK`:
+   - **Parse gate (mandatory, blocking — *your* job).** Write the candidate JSON to a file and run a real parser yourself before showing any of it. You may not deliver until *you* have run it and it prints `PARSE OK`:
      ```
      python3 -c "import json,sys; json.load(open(sys.argv[1])); print('PARSE OK')" superflow.json
      ```
      If you have no execution environment, say so explicitly rather than claiming it parses, then fall back to the hand-escape discipline (step 7) and the char-scan in RULES.md.
    - **On a parse error, repair and re-parse — never hand-deliver the broken blob.** Run the repair lookup below, re-run the parse gate, and loop fix → re-parse until `PARSE OK`. See "Parse-and-repair gate" in the skill.
+   - **Never offload validation to the user.** Do not deliver by telling them to save the file, "run the parse gate to confirm," or share a `line:column` error. The destination is the Studio Import SuperFlow sheet, which validates with `JSON.parse` and shows only "Invalid JSON" (no position) — the user has nothing to relay. You run the gate, you repair, you hand over JSON already confirmed to parse.
    - JSON parseable — produced by an encoder (default) or, tool-less, hand-escaped: every `jsCode`/`systemPrompt`/`prompt`/`jsonBody`/`extraction_schema` is a SINGLE JSON line using `\n`/`\t`, embedded `"` as `\"`, embedded `\` as `\\`.
    - Exactly one trigger
    - Every connection target exists and is referenced by `name`
@@ -46,7 +47,7 @@ When a user submits a workflow request:
 
 ## Output Format
 
-Build the object → serialize with an encoder → write `superflow.json` → parse-gate the file → display its contents. The block below is what the *displayed* result looks like, not a license to hand-type it.
+Build the object → serialize with an encoder → write `superflow.json` → parse-gate the file *yourself* → display its contents. The block below is what the *displayed* result looks like, not a license to hand-type it. Present the JSON as already validated (you ran the gate) — never ask the reader to parse-check it or to report errors back.
 
 JSON block, then a structured narrative:
 

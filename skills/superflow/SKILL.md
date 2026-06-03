@@ -81,13 +81,17 @@ The multi-line `jsCode`/prompt examples shown elsewhere in this skill are **sour
 
 ## Parse-and-repair gate (run before every delivery)
 
-Serializing prevents most escaping bugs; the gate *proves* the file is clean and tells you exactly where it isn't. This is blocking — you may not deliver until it prints `PARSE OK`.
+Serializing prevents most escaping bugs; the gate *proves* the file is clean and tells you exactly where it isn't. This is blocking and it is **your** job, not the user's — you may not deliver until *you* have run it and it printed `PARSE OK`.
+
+**Why it's non-negotiable.** The JSON you produce gets pasted into the Studio "Import SuperFlow" sheet, which validates with `JSON.parse` and, on any failure, shows the user a single generic **"Invalid JSON"** — no line, no column, no position. A malformed flow is therefore a dead end: the user has nothing to relay back. So **never** close with "save it and run the parse gate," "if it fails, share the `line:column` and I'll repair," or any phrasing that offloads validation onto the user — they cannot see that error. Run the gate yourself, repair until clean, and hand over JSON you have already confirmed parses.
 
 ```
 python3 -c "import json,sys; json.load(open(sys.argv[1])); print('PARSE OK')" superflow.json
+# or match the Studio importer's parser exactly (JS JSON.parse):
+node -e "JSON.parse(require('fs').readFileSync(process.argv[1],'utf8')); console.log('PARSE OK')" superflow.json
 ```
 
-On failure the parser names the fault and the byte: `... at position P (line L column C)`. Read the error *name*, jump to line L, fix, **re-run the gate** — loop until `PARSE OK`. Never ship a file that hasn't printed `PARSE OK` (and if you cannot run the gate at all, say so explicitly — do not assert it parses).
+The canonical validator is JS `JSON.parse` (what the importer runs); the `python3` proxy rejects the same faults — raw control chars, bad escapes, unescaped quotes — so either is fine for the failures that actually occur here. On failure the parser names the fault and the byte: `... at position P (line L column C)`. Read the error *name*, jump to line L, fix, **re-run the gate yourself** — loop until `PARSE OK`. Never ship a file that hasn't printed `PARSE OK`. (If you are in a runtime with genuinely no way to run either command, say so plainly — do not assert it parses, and do not push the check onto the user.)
 
 | Parser error | Cause | Fix |
 |---|---|---|

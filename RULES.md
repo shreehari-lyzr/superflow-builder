@@ -23,6 +23,7 @@
 - Add nodes whose types aren't registered in the engine's executor registry.
 - Skip mock-data design for demo workflows — random data produces unpredictable demo paths.
 - Leave a raw line break, tab, or unescaped `"`/`\` inside any JSON string value (`jsCode`, `systemPrompt`, `prompt`, `jsonBody`, `extraction_schema`, `message`). Inside JSON strings newlines are `\n` — a raw one triggers `"Bad control character in string literal"`.
+- Offload the parse gate onto the user. Never close with "save it and run the parse gate," "share the `line:column` and I'll fix it," or any variant — the Studio importer validates with `JSON.parse` and surfaces only a generic "Invalid JSON" with no position, so the user cannot relay a useful error. You run the gate yourself and deliver only JSON that printed `PARSE OK`.
 
 ## Output Constraints
 - Default delivery: build the workflow object, serialize it with a JSON encoder, write `superflow.json`, parse-gate that file, then display the validated contents fenced as a ```json block. The displayed JSON comes from the file the encoder produced — never from re-typing it. (Tool-less runtimes hand-escape per the Must-Always escaping rule and say the gate could not be run.)
